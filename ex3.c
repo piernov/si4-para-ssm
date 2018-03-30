@@ -23,7 +23,7 @@ void printArray(struct tablo * tmp) {
   int size = tmp->size;
   int i;
   for (i = 0; i < size; ++i) {
-    printf("%i ", tmp->tab[i]);
+    printf("%li ", tmp->tab[i]);
   }
   printf("\n");
 }
@@ -35,7 +35,7 @@ struct tablo * allocateTablo(long size) {
   return tmp;
 }
 
-#define POW2(x) (1 << (x))
+#define POW2(x) ((unsigned long)(1 << (x)))
 #define LOG2(x)	__asm__ ( "\tbsr %1, %0\n" \
 		: "=r"(x) \
 		: "r" (x) \
@@ -49,32 +49,32 @@ unsigned long get_height(long size) {
 }
 
 void montee(struct tablo * source, struct tablo * destination) {
-	for (long i = source->size - 1, j = destination->size - 1; i >= 0; i--, j--) {
-		destination->tab[j] = source->tab[i];
+	for (size_t i = source->size, j = destination->size; i != 0; i--, j--) {
+		destination->tab[j - 1] = source->tab[i - 1];
 	}
 
 	destination->tab[0] = 0;
          
 	unsigned long m = get_height(source->size);
 	
-	for (long i = m - 1; i >= 0; i--) {
-		for (long j = POW2(i); j <= POW2(i+1) -1; j++) {
+	for (size_t i = m; i != 0; i--) {
+		for (size_t j = POW2(i - 1); j <= POW2(i) -1; j++) {
 			destination->tab[j/*parent*/] = destination->tab[2*j /*fils gauche*/] + destination->tab[2*j+1 /*fils droit*/];
 		}
 	}
 }
 
 void monteeMax(struct tablo * source, struct tablo * destination) {
-	for (long i = source->size - 1, j = destination->size - 1; i >= 0; i--, j--) {
-		destination->tab[j] = source->tab[i];
+	for (size_t i = source->size, j = destination->size; i != 0; i--, j--) {
+		destination->tab[j - 1] = source->tab[i - 1];
 	}
 
 	destination->tab[0] = 0;
          
 	unsigned long m = get_height(source->size);
 	
-	for (long i = m - 1; i >= 0; i--) {
-		for (long j = POW2(i); j <= POW2(i+1) -1; j++) {
+	for (size_t i = m; i != 0; i--) {
+		for (size_t j = POW2(i - 1); j <= POW2(i) -1; j++) {
 			destination->tab[j/*parent*/] = MAX( destination->tab[2*j /*fils gauche*/] , destination->tab[2*j+1 /*fils droit*/] );
 		}
 	}
@@ -83,10 +83,10 @@ void monteeMax(struct tablo * source, struct tablo * destination) {
 void descente(struct tablo * a, struct tablo * b) {
 	b->tab[1] = 0;
 
-	unsigned long m = get_height(a->size);
+	size_t m = get_height(a->size);
 	
-	for (long i = 1; i < m; i++) {
-		for (long j = POW2(i); j <= POW2(i+1) -1; j++) {
+	for (size_t i = 1; i < m; i++) {
+		for (size_t j = POW2(i); j <= POW2(i+1) -1; j++) {
 			if (j%2 == 0 /*pair, fils gauche*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			else
@@ -100,8 +100,8 @@ void descenteSuff(struct tablo * a, struct tablo * b) {
 
 	unsigned int m = get_height(a->size);
 	
-	for (int i = 1; i < m; i++) {
-		for (int j = POW2(i); j <= POW2(i+1) -1; j++) {
+	for (size_t i = 1; i < m; i++) {
+		for (size_t j = POW2(i); j <= POW2(i+1) -1; j++) {
 			if (j%2 == 1 /*pair, fils droit*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			else
@@ -113,10 +113,10 @@ void descenteSuff(struct tablo * a, struct tablo * b) {
 void descentePreMax(struct tablo * a, struct tablo * b) {
 	b->tab[1] = LONG_MIN;
 
-	unsigned int m = get_height(a->size);
+	size_t m = get_height(a->size);
 	
-	for (int i = 1; i < m; i++) {
-		for (int j = POW2(i); j <= POW2(i+1) -1; j++) {
+	for (size_t i = 1; i < m; i++) {
+		for (size_t j = POW2(i); j <= POW2(i+1) -1; j++) {
 			if (j%2 == 0 /*pair, fils gauche*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			else
@@ -128,10 +128,10 @@ void descentePreMax(struct tablo * a, struct tablo * b) {
 void descenteSuffMax(struct tablo * a, struct tablo * b) {
 	b->tab[1] = LONG_MIN;
 
-	unsigned int m = get_height(a->size);
+	size_t m = get_height(a->size);
 	
-	for (int i = 1; i < m; i++) {
-		for (int j = POW2(i); j <= POW2(i+1) -1; j++) {
+	for (size_t i = 1; i < m; i++) {
+		for (size_t j = POW2(i); j <= POW2(i+1) -1; j++) {
 			if (j%2 == 1 /*pair, fils droit*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			else
@@ -141,53 +141,20 @@ void descenteSuffMax(struct tablo * a, struct tablo * b) {
 }
 
 void final(struct tablo * a, struct tablo *b) {
-	unsigned int m = get_height(a->size/2);
+	size_t m = get_height(a->size/2);
 
-	for (int i = POW2(m); i <= POW2(m+1) -1; i++) {
+	for (size_t i = POW2(m); i <= POW2(m+1) -1; i++) {
 		b->tab[i] = b->tab[i] + a->tab[i];
 	}
 
 }
 
 void finalMax(struct tablo * a, struct tablo *b) {
-	unsigned int m = get_height(a->size/2);
+	size_t m = get_height(a->size/2);
 
-	for (int i = POW2(m); i <= POW2(m+1) -1; i++) {
+	for (size_t i = POW2(m); i <= POW2(m+1) -1; i++) {
 		b->tab[i] = MAX( b->tab[i] , a->tab[i]);
 	}
-
-}
-
-void generateArray(struct tablo * s) {
-  //construction d'un tableau pour tester
-  //s->size=8;
-  s->size = 16;
-  s->tab=malloc(s->size*sizeof(int));
-/*  s->tab[0]=3;
-  s->tab[1]=1;
-  s->tab[2]=7;
-  s->tab[3]=0;
-  s->tab[4]=4;
-  s->tab[5]=1;
-  s->tab[6]=6;
-  s->tab[7]=3;
-  */
-  s->tab[0] = 3;
-  s->tab[1] = 2;
-  s->tab[2] = -7;
-  s->tab[3] = 11;
-  s->tab[4] = 10;
-  s->tab[5] = -6;
-  s->tab[6] = 4;
-  s->tab[7] = 9;
-  s->tab[8] = -6;
-  s->tab[9] = 1;
-  s->tab[10] = -2;
-  s->tab[11] = -3;
-  s->tab[12] = 4;
-  s->tab[13] = -3;
-  s->tab[14] = 0;
-  s->tab[15] = 2;
 
 }
 
@@ -204,7 +171,7 @@ void readArray(const char *filename, struct tablo *tab) {
 	}
 	size_t size = s.st_size;
 
-	const char *mapped = mmap(0, size, PROT_READ, MAP_PRIVATE, fd, 0);
+	char *mapped = mmap(0, size, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (mapped == MAP_FAILED) {
 		fprintf(stderr, "mmap %s failed: %s\n", filename, strerror (errno));
 	}
@@ -212,7 +179,7 @@ void readArray(const char *filename, struct tablo *tab) {
 	unsigned long arraySize = 131072;
 	long *array = malloc(arraySize * sizeof(long));
 	if (!array) exit(31);
-	long index = 0;
+	size_t index = 0;
 
 	char *endptr = mapped;
 	while (endptr < mapped + size - 1) {
@@ -231,6 +198,8 @@ void readArray(const char *filename, struct tablo *tab) {
 }
 
 int main(int argc, char **argv) {
+	if (argc < 2) exit(3);
+
   struct tablo source;
 
   /* read input => Q */
@@ -241,8 +210,8 @@ int main(int argc, char **argv) {
 
   /* 1: sum-prefix Q => PSUM */
 #ifdef DEBUG
-  printf("\nStep1:\n");
   printArray(&source);
+  printf("\nStep1:\n");
 #endif
 
   struct tablo * a = allocateTablo(source.size*2);
@@ -347,7 +316,7 @@ int main(int argc, char **argv) {
   	struct tablo * Ms = allocateTablo(source.size);
 	struct tablo * Mp = allocateTablo(source.size);
 	struct tablo * M = allocateTablo(source.size);
-	for (int i = source.size; i < 2*source.size; i++) {
+	for (size_t i = source.size; i < 2*source.size; i++) {
 		Ms->tab[i - source.size] = bpm->tab[i] - b2->tab[i] + source.tab[i - source.size];
 		Mp->tab[i - source.size] = bssm->tab[i] - b->tab[i] + source.tab[i - source.size];
 		M->tab[i - source.size] = Ms->tab[i - source.size] + Mp->tab[i - source.size] - source.tab[i - source.size];
@@ -364,7 +333,7 @@ int main(int argc, char **argv) {
   int ai = -1;
   int bi = -1;
   int inseq = 0;
-  for (int i = 0; i < M->size; i++) {
+  for (size_t i = 0; i < M->size; i++) {
 	if (M->tab[i] >= max) {
 		if (M->tab[i] > max) {
 			max = M->tab[i];
@@ -386,10 +355,10 @@ int main(int argc, char **argv) {
 	}
   }
 //  printf("max: %d, i %d j %d\n", max, ai+1, bi+1);
-	printf("%d ", max);
-struct tablo out = source;
-out.size = bi - ai + 1;
-out.tab += ai;
-printArray(&out);
+	printf("%ld ", max);
+	struct tablo out = source;
+	out.size = bi - ai + 1;
+	out.tab += ai;
+	printArray(&out);
   /* print output MSS */
 }
