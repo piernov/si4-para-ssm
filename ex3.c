@@ -16,30 +16,43 @@ struct tablo {
   size_t size;
 };
 
+struct maxTreeNode {
+	long l;
+	long v;
+	long r;
+};
+
 void printArray(struct tablo * tmp) {
-#ifdef DEBUG
-  printf("---- Array of size %i ---- \n", tmp->size);
-#endif
-  int size = tmp->size;
-  int i;
-  for (i = 0; i < size; ++i) {
-    printf("%li ", tmp->tab[i]);
-  }
-  printf("\n");
+	size_t size = tmp->size;
+	size_t i;
+	for (i = 0; i < size; ++i) {
+		printf("%li ", tmp->tab[i]);
+	}
+	printf("\n");
 }
 
-struct tablo * allocateTablo(long size) {
-  struct tablo * tmp = malloc(sizeof(struct tablo));
-  tmp->size = size;
-  tmp->tab = malloc(size*sizeof(long));
-  return tmp;
+struct tablo allocateTablo(size_t size) {
+	struct tablo tmp;
+	tmp.size = size;
+	tmp.tab = malloc(size*sizeof(long));
+	return tmp;
+}
+
+void freeTablo(struct tablo *tab) {
+	free(tab->tab);
+	tab->tab = NULL;
+	tab->size = 0;
 }
 
 #define POW2(x) ((unsigned long)(1 << (x)))
+#ifdef __x86_64__
 #define LOG2(x)	__asm__ ( "\tbsr %1, %0\n" \
 		: "=r"(x) \
 		: "r" (x) \
 	)
+#else
+#define LOG2(x) x = (unsigned long)(log2(x))
+#endif
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 
 unsigned long get_height(long size) {
@@ -98,13 +111,6 @@ void descente(struct tablo * a, struct tablo * b) {
 			int j = oj << 1;
 			b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			b->tab[j+1/*nœud*/] = b->tab[(j+1)/2/*parent*/] + a->tab[(j+1)-1];
-
-#if 0
-			if (j%2 == 0 /*pair, fils gauche*/)
-				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
-			else
-				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/] + a->tab[j-1];
-#endif
 		}
 	}
 }
@@ -122,12 +128,6 @@ void descenteSuff(struct tablo * a, struct tablo * b) {
 			size_t j = oj << 1;
 			b->tab[j/*nœud*/] = b->tab[j/2/*parent*/] + a->tab[j+1];
 			b->tab[j+1/*nœud*/] = b->tab[(j+1)/2/*parent*/];
-#if 0
-			if (j%2 == 1 /*pair, fils droit*/)
-				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
-			else
-				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/] + a->tab[j+1];
-#endif
 		}
 	}
 }
@@ -144,13 +144,6 @@ void descentePreMax(struct tablo * a, struct tablo * b) {
 			size_t j = oj << 1;
 			b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			b->tab[j+1/*nœud*/] = MAX( b->tab[(j+1)/2/*parent*/] , a->tab[(j+1)-1] );
-
-#if 0
-			if (j%2 == 0 /*pair, fils gauche*/)
-				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
-			else
-				b->tab[j/*nœud*/] = MAX( b->tab[j/2/*parent*/] , a->tab[j-1] );
-#endif
 		}
 	}
 }
@@ -167,13 +160,6 @@ void descenteSuffMax(struct tablo * a, struct tablo * b) {
 			size_t j = oj << 1;
 			b->tab[j/*nœud*/] = MAX(b->tab[j/2/*parent*/] , a->tab[j+1]);
 			b->tab[j+1/*nœud*/] = b->tab[(j+1)/2/*parent*/];
-
-#if 0
-			if (j%2 == 1 /*pair, fils droit*/)
-				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
-			else
-				b->tab[j/*nœud*/] = MAX(b->tab[j/2/*parent*/] , a->tab[j+1]);
-#endif
 		}
 	}
 }
@@ -198,6 +184,67 @@ void finalMax(struct tablo * a, struct tablo *b) {
 		b->tab[i] = MAX( b->tab[i] , a->tab[i]);
 	}
 
+}
+
+struct tablo buildOut(struct tablo source, struct tablo ssum, struct tablo psum, struct tablo smax, struct tablo pmax) {
+  	struct tablo Ms = allocateTablo(source.size);
+	struct tablo Mp = allocateTablo(source.size);
+	struct tablo M = allocateTablo(source.size);
+
+	const size_t iend = 2*source.size;
+#pragma omp parallel for
+	for (size_t i = source.size; i < iend; i++) {
+#pragma omp parallel
+{
+		Ms.tab[i - source.size] = pmax.tab[i] - ssum.tab[i] /*+ source.tab[i - source.size]*/;
+		Mp.tab[i - source.size] = smax.tab[i] - psum.tab[i] /*+ source.tab[i - source.size]*/;
+}
+		M.tab[i - source.size] = Ms.tab[i - source.size] + Mp.tab[i - source.size] /*-*/ + source.tab[i - source.size];
+	}
+	freeTablo(&Ms);
+	freeTablo(&Mp);
+	return M;
+}
+
+struct maxTreeNode findMax(struct tablo source) {
+	struct maxTreeNode *maxTree = malloc(source.size * 2 * sizeof(struct maxTreeNode));
+#pragma omp parallel for
+	for (size_t i = source.size; i > 0; i--) {
+		size_t j = source.size + i;
+		struct maxTreeNode *n = maxTree + j - 1;
+		n->v = source.tab[i - 1];
+		n->l = i - 1; 
+		n->r = i;
+	}
+
+	maxTree[0].v = 0;
+	unsigned int m = get_height(source.size);
+
+	for (size_t i = m; i != 0; i--) {
+		const size_t jend = POW2(i) - 1;
+#pragma omp parallel for
+		for (size_t j = POW2(i - 1); j <= jend; j++) {
+			struct maxTreeNode *l = maxTree + (2*j) /*fils gauche*/;
+			struct maxTreeNode *r = maxTree + (2*j+1) /*fils droit*/;
+			struct maxTreeNode *p = maxTree + j;
+			p->v = MAX( l->v , r->v );
+			if (l->v > r->v) {
+				p->l = l->l;
+				p->r = l->r;
+			}
+			else if (l->v < r->v) {
+				p->l = r->l;
+				p->r = r->r;
+			}
+			else {
+				p->l = l->l;
+				p->r = r->r;
+			}
+		}
+	}
+	struct maxTreeNode maxNode = maxTree[1];
+	free(maxTree);
+	return maxNode;
 }
 
 void readArray(const char *filename, struct tablo *tab) {
@@ -236,176 +283,78 @@ void readArray(const char *filename, struct tablo *tab) {
 	}
 	tab->tab = array;
 	tab->size = index;
-
 }
 
 int main(int argc, char **argv) {
-	if (argc < 2) exit(3);
+	if (argc < 2) exit(3); // must specify input file
 
-  struct tablo source;
-
-  /* read input => Q */
-#ifdef DEBUG
-  printf("Step0:\n");
-#endif
+	/* read input => Q */
+	struct tablo source;
 	readArray(argv[1], &source);
 
-  /* 1: sum-prefix Q => PSUM */
-#ifdef DEBUG
-  printArray(&source);
-  printf("\nStep1:\n");
-#endif
+	/* 1: sum-prefix Q => PSUM */
+	struct tablo a = allocateTablo(source.size*2);
+	montee(&source, &a);
+	struct tablo psum = allocateTablo(source.size*2);
+	descente(&a, &psum);
+	final(&a, &psum);
 
-  struct tablo * a = allocateTablo(source.size*2);
-  montee(&source, a);
-#ifdef DEBUG
-  printArray(a);
-#endif
+	/* 2: sum-suffix Q => SSUM */
+	struct tablo ssum = allocateTablo(source.size*2);
+	descenteSuff(&a, &ssum);
+	final(&a, &ssum);
 
-  struct tablo * b = allocateTablo(source.size*2);
-  descente(a, b);
-#ifdef DEBUG
-  printArray(b);
-#endif
-   
-  final(a,b);
-#ifdef DEBUG
-  printArray(b);
-#endif
+	freeTablo(&a);
 
+	/* 3: max-suffix PSUM => SMAX */
+	struct tablo apm = allocateTablo(source.size*2);
+	struct tablo btmp = psum;
+	btmp.size /= 2;
+	btmp.tab = btmp.tab + source.size;
+	monteeMax(&btmp, &apm);
 
+	struct tablo smax = allocateTablo(source.size*2);
+	descenteSuffMax(&apm, &smax);
+	finalMax(&apm, &smax);
 
-  /* 2: sum-suffix Q => SSUM */
-#ifdef DEBUG
-  printf("\nStep 2:\n");
-#endif
-  struct tablo * b2 = allocateTablo(source.size*2);
-  descenteSuff(a, b2);
+	freeTablo(&apm);
 
-#ifdef DEBUG
-  printArray(b2);
-#endif
+	/* 4: max-prefix SSUM => PMAX */
+	struct tablo assm = allocateTablo(source.size*2);
+	struct tablo btmp2 = ssum;
+	btmp2.size /= 2;
+	btmp2.tab = btmp2.tab + source.size;
+	monteeMax(&btmp2, &assm);
 
-  final(a,b2);
+	struct tablo pmax = allocateTablo(source.size*2);
+	descentePreMax(&assm, &pmax);
+	finalMax(&assm, &pmax);
 
-#ifdef DEBUG
-  printArray(b2);
-#endif
+	freeTablo(&assm);
 
+	/* 5: for (int i = 0; i < n; i++)
+	 * 	1: Ms[i] = PMAX[i] - SSUM[i] + Q[i]
+	 * 	2: Mp[i] = SMAX[i] - PSUM[i] + Q[i]
+	 * 	3: M[i] = Ms[i] + Mp[i] - Q[i] */
+	struct tablo M = buildOut(source, ssum, psum, smax, pmax);
+	freeTablo(&ssum);
+	freeTablo(&psum);
+	freeTablo(&smax);
+	freeTablo(&pmax);
 
+	/* 6: max in M */
+	struct maxTreeNode maxNode = findMax(M);
+	freeTablo(&M);
 
-  /* 3: max-suffix PSUM => SMAX */
-#ifdef DEBUG
-  printf("\nStep3:\n");
-#endif
-  struct tablo * apm = allocateTablo(source.size*2);
-  struct tablo btmp = *b;
-  btmp.size /= 2;
-  btmp.tab = btmp.tab + source.size;
-  monteeMax(&btmp, apm);
+	long max = maxNode.v;
+	size_t ai = maxNode.l;
+	size_t bi = maxNode.r;
 
-#ifdef DEBUG
-  printArray(apm);
-#endif
-
-  struct tablo * bpm = allocateTablo(source.size*2);
-  descenteSuffMax(apm, bpm);
-
-#ifdef DEBUG
-  printArray(bpm);
-#endif
-   
-  finalMax(apm,bpm);
-
-#ifdef DEBUG
-  printArray(bpm);
-#endif
-
-  /* 4: max-prefix SSUM => PMAX */
-#ifdef DEBUG
-  printf("\nStep4:\n");
-#endif
-  struct tablo * assm = allocateTablo(source.size*2);
-  struct tablo btmp2 = *b2;
-  btmp2.size /= 2;
-  btmp2.tab = btmp2.tab + source.size;
-  monteeMax(&btmp2, assm);
-#ifdef DEBUG
-  printArray(assm);
-#endif
-
-  struct tablo * bssm = allocateTablo(source.size*2);
-  descentePreMax(assm, bssm);
-
-#ifdef DEBUG
-  printArray(bssm);
-#endif
-   
-  finalMax(assm,bssm);
-#ifdef DEBUG
-  printArray(bssm);
-#endif
-
-  /* 5: for (int i = 0; i < n; i++)
-   * 	1: Ms[i] = PMAX[i] - SSUM[i] + Q[i]
-   * 	2: Mp[i] = SMAX[i] - PSUM[i] + Q[i]
-   * 	3: M[i] = Ms[i] + Mp[i] - Q[i] */
-#ifdef DEBUG
-  printf("\nStep5:\n");
-#endif
-
-  //parrallel
-  	struct tablo * Ms = allocateTablo(source.size);
-	struct tablo * Mp = allocateTablo(source.size);
-	struct tablo * M = allocateTablo(source.size);
-	const size_t iend = 2*source.size;
-#pragma omp parallel for
-	for (size_t i = source.size; i < iend; i++) {
-#pragma omp parallel
-{
-			Ms->tab[i - source.size] = bpm->tab[i] - b2->tab[i] /*+ source.tab[i - source.size]*/;
-			Mp->tab[i - source.size] = bssm->tab[i] - b->tab[i] /*+ source.tab[i - source.size]*/;
-}
-		M->tab[i - source.size] = Ms->tab[i - source.size] + Mp->tab[i - source.size] /*-*/ + source.tab[i - source.size];
-	}
-#ifdef DEBUG
-	printArray(M);
-#endif
-		
-  /* 6: max in M */
-#ifdef DEBUG
-  printf("\nStep6:\n");
-#endif
-  long max = LONG_MIN;
-  int ai = -1;
-  int bi = -1;
-  int inseq = 0;
-  for (size_t i = 0; i < M->size; i++) {
-	if (M->tab[i] >= max) {
-		if (M->tab[i] > max) {
-			max = M->tab[i];
-			inseq = 0;
-		}
-
-		if (ai == -1 || !inseq) {
-			ai = i;
-		}
-		if (bi == -1 || !inseq)
-			bi = i;
-		else
-			bi++;
-		inseq = 1;
-		
-	}
-	else {
-		inseq = 0;
-	}
-  }
-//  printf("max: %d, i %d j %d\n", max, ai+1, bi+1);
+	/* 7: print output MSS */
 	printf("%ld ", max);
 	struct tablo out = source;
-	out.size = bi - ai + 1;
+	out.size = bi - ai;
 	out.tab += ai;
 	printArray(&out);
-  /* print output MSS */
+	freeTablo(&source);
 }
