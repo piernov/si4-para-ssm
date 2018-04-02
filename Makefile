@@ -1,6 +1,6 @@
-all: ex3 ex3-mp
+all: novac novac-mp
 
-ex%: ex%.c
+novac: novac.c
 	gcc -std=c99 -g -Wall -Wextra -lm -o $@ $^
 
 %-mp: %.c
