@@ -108,7 +108,7 @@ void descente(struct tablo * a, struct tablo * b) {
 		const size_t jend = POW2(i) - 1;
 #pragma omp parallel for
 		for (size_t oj = POW2(i - 1); oj <= jend; oj++) {
-			int j = oj << 1;
+			size_t j = oj << 1;
 			b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			b->tab[j+1/*nœud*/] = b->tab[(j+1)/2/*parent*/] + a->tab[(j+1)-1];
 		}
@@ -124,7 +124,6 @@ void descenteSuff(struct tablo * a, struct tablo * b) {
 		const size_t jend = POW2(i) - 1;
 #pragma omp parallel for
 		for (size_t oj = POW2(i-1); oj <= jend; oj++) {
-
 			size_t j = oj << 1;
 			b->tab[j/*nœud*/] = b->tab[j/2/*parent*/] + a->tab[j+1];
 			b->tab[j+1/*nœud*/] = b->tab[(j+1)/2/*parent*/];
@@ -228,6 +227,7 @@ struct maxTreeNode findMax(struct tablo source) {
 			struct maxTreeNode *r = maxTree + (2*j+1) /*fils droit*/;
 			struct maxTreeNode *p = maxTree + j;
 			p->v = MAX( l->v , r->v );
+			//branch predictor will probably hate this
 			if (l->v > r->v) {
 				p->l = l->l;
 				p->r = l->r;
@@ -236,9 +236,21 @@ struct maxTreeNode findMax(struct tablo source) {
 				p->l = r->l;
 				p->r = r->r;
 			}
-			else {
-				p->l = l->l;
-				p->r = r->r;
+			else { // max equal so we need to check for a break in the sequence further down
+				if (l->r != r->l) {
+					if (l->r - l->l > r->r - r->l) { // longest sequence on the left
+						p->l = l->l;
+						p->l = l->r;
+					}
+					else { //longest sequence on the right
+						p->l = r->l;
+						p->l = r->r;
+					}
+				}
+				else { //merge sequences
+					p->l = l->l;
+					p->r = r->r;
+				}
 			}
 		}
 	}
