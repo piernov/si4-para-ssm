@@ -49,7 +49,9 @@ unsigned long get_height(long size) {
 }
 
 void montee(struct tablo * source, struct tablo * destination) {
-	for (size_t i = source->size, j = destination->size; i != 0; i--, j--) {
+#pragma omp parallel for
+	for (size_t i = source->size; i > 0; i--) {
+		size_t j = source->size + i;
 		destination->tab[j - 1] = source->tab[i - 1];
 	}
 
@@ -58,6 +60,7 @@ void montee(struct tablo * source, struct tablo * destination) {
 	unsigned long m = get_height(source->size);
 	
 	for (size_t i = m; i != 0; i--) {
+#pragma omp parallel for
 		for (size_t j = POW2(i - 1); j <= POW2(i) -1; j++) {
 			destination->tab[j/*parent*/] = destination->tab[2*j /*fils gauche*/] + destination->tab[2*j+1 /*fils droit*/];
 		}
@@ -65,7 +68,9 @@ void montee(struct tablo * source, struct tablo * destination) {
 }
 
 void monteeMax(struct tablo * source, struct tablo * destination) {
-	for (size_t i = source->size, j = destination->size; i != 0; i--, j--) {
+#pragma omp parallel for
+	for (size_t i = source->size; i > 0; i--) {
+		size_t j = source->size + i;
 		destination->tab[j - 1] = source->tab[i - 1];
 	}
 
@@ -74,6 +79,7 @@ void monteeMax(struct tablo * source, struct tablo * destination) {
 	unsigned long m = get_height(source->size);
 	
 	for (size_t i = m; i != 0; i--) {
+#pragma omp parallel for
 		for (size_t j = POW2(i - 1); j <= POW2(i) -1; j++) {
 			destination->tab[j/*parent*/] = MAX( destination->tab[2*j /*fils gauche*/] , destination->tab[2*j+1 /*fils droit*/] );
 		}
@@ -86,6 +92,7 @@ void descente(struct tablo * a, struct tablo * b) {
 	size_t m = get_height(a->size);
 	
 	for (size_t i = 1; i < m; i++) {
+#pragma omp parallel for
 		for (size_t j = POW2(i); j <= POW2(i+1) -1; j++) {
 			if (j%2 == 0 /*pair, fils gauche*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
@@ -101,6 +108,7 @@ void descenteSuff(struct tablo * a, struct tablo * b) {
 	unsigned int m = get_height(a->size);
 	
 	for (size_t i = 1; i < m; i++) {
+#pragma omp parallel for
 		for (size_t j = POW2(i); j <= POW2(i+1) -1; j++) {
 			if (j%2 == 1 /*pair, fils droit*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
@@ -116,6 +124,7 @@ void descentePreMax(struct tablo * a, struct tablo * b) {
 	size_t m = get_height(a->size);
 	
 	for (size_t i = 1; i < m; i++) {
+#pragma omp parallel for
 		for (size_t j = POW2(i); j <= POW2(i+1) -1; j++) {
 			if (j%2 == 0 /*pair, fils gauche*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
@@ -131,6 +140,7 @@ void descenteSuffMax(struct tablo * a, struct tablo * b) {
 	size_t m = get_height(a->size);
 	
 	for (size_t i = 1; i < m; i++) {
+#pragma omp parallel for
 		for (size_t j = POW2(i); j <= POW2(i+1) -1; j++) {
 			if (j%2 == 1 /*pair, fils droit*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
@@ -143,6 +153,7 @@ void descenteSuffMax(struct tablo * a, struct tablo * b) {
 void final(struct tablo * a, struct tablo *b) {
 	size_t m = get_height(a->size/2);
 
+#pragma omp parallel for
 	for (size_t i = POW2(m); i <= POW2(m+1) -1; i++) {
 		b->tab[i] = b->tab[i] + a->tab[i];
 	}
@@ -152,6 +163,7 @@ void final(struct tablo * a, struct tablo *b) {
 void finalMax(struct tablo * a, struct tablo *b) {
 	size_t m = get_height(a->size/2);
 
+#pragma omp parallel for
 	for (size_t i = POW2(m); i <= POW2(m+1) -1; i++) {
 		b->tab[i] = MAX( b->tab[i] , a->tab[i]);
 	}
@@ -316,10 +328,14 @@ int main(int argc, char **argv) {
   	struct tablo * Ms = allocateTablo(source.size);
 	struct tablo * Mp = allocateTablo(source.size);
 	struct tablo * M = allocateTablo(source.size);
+#pragma omp parallel for
 	for (size_t i = source.size; i < 2*source.size; i++) {
-		Ms->tab[i - source.size] = bpm->tab[i] - b2->tab[i] + source.tab[i - source.size];
-		Mp->tab[i - source.size] = bssm->tab[i] - b->tab[i] + source.tab[i - source.size];
-		M->tab[i - source.size] = Ms->tab[i - source.size] + Mp->tab[i - source.size] - source.tab[i - source.size];
+#pragma omp parallel
+{
+			Ms->tab[i - source.size] = bpm->tab[i] - b2->tab[i] /*+ source.tab[i - source.size]*/;
+			Mp->tab[i - source.size] = bssm->tab[i] - b->tab[i] /*+ source.tab[i - source.size]*/;
+}
+		M->tab[i - source.size] = Ms->tab[i - source.size] + Mp->tab[i - source.size] /*-*/ + source.tab[i - source.size];
 	}
 #ifdef DEBUG
 	printArray(M);
