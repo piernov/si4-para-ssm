@@ -48,7 +48,7 @@ unsigned long get_height(long size) {
 	return m;
 }
 
-void montee(struct tablo * source, struct tablo * destination) {
+void fill_dest(struct tablo *source, struct tablo *destination) {
 #pragma omp parallel for
 	for (size_t i = source->size; i > 0; i--) {
 		size_t j = source->size + i;
@@ -56,31 +56,31 @@ void montee(struct tablo * source, struct tablo * destination) {
 	}
 
 	destination->tab[0] = 0;
-         
+}
+
+void montee(struct tablo * source, struct tablo * destination) {
+	fill_dest(source, destination);
+
 	unsigned long m = get_height(source->size);
 	
 	for (size_t i = m; i != 0; i--) {
+		const size_t jend = POW2(i) - 1;
 #pragma omp parallel for
-		for (size_t j = POW2(i - 1); j <= POW2(i) -1; j++) {
+		for (size_t j = POW2(i - 1); j <= jend; j++) {
 			destination->tab[j/*parent*/] = destination->tab[2*j /*fils gauche*/] + destination->tab[2*j+1 /*fils droit*/];
 		}
 	}
 }
 
 void monteeMax(struct tablo * source, struct tablo * destination) {
-#pragma omp parallel for
-	for (size_t i = source->size; i > 0; i--) {
-		size_t j = source->size + i;
-		destination->tab[j - 1] = source->tab[i - 1];
-	}
+	fill_dest(source, destination);
 
-	destination->tab[0] = 0;
-         
 	unsigned long m = get_height(source->size);
 	
 	for (size_t i = m; i != 0; i--) {
+		const size_t jend = POW2(i) - 1;
 #pragma omp parallel for
-		for (size_t j = POW2(i - 1); j <= POW2(i) -1; j++) {
+		for (size_t j = POW2(i - 1); j <= jend; j++) {
 			destination->tab[j/*parent*/] = MAX( destination->tab[2*j /*fils gauche*/] , destination->tab[2*j+1 /*fils droit*/] );
 		}
 	}
@@ -92,8 +92,9 @@ void descente(struct tablo * a, struct tablo * b) {
 	size_t m = get_height(a->size);
 	
 	for (size_t i = 1; i < m; i++) {
+		const size_t jend = POW2(i+1) - 1;
 #pragma omp parallel for
-		for (size_t j = POW2(i); j <= POW2(i+1) -1; j++) {
+		for (size_t j = POW2(i); j <= jend; j++) {
 			if (j%2 == 0 /*pair, fils gauche*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			else
@@ -108,8 +109,9 @@ void descenteSuff(struct tablo * a, struct tablo * b) {
 	unsigned int m = get_height(a->size);
 	
 	for (size_t i = 1; i < m; i++) {
+		const size_t jend = POW2(i+1) - 1;
 #pragma omp parallel for
-		for (size_t j = POW2(i); j <= POW2(i+1) -1; j++) {
+		for (size_t j = POW2(i); j <= jend; j++) {
 			if (j%2 == 1 /*pair, fils droit*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			else
@@ -124,8 +126,9 @@ void descentePreMax(struct tablo * a, struct tablo * b) {
 	size_t m = get_height(a->size);
 	
 	for (size_t i = 1; i < m; i++) {
+		const size_t jend = POW2(i+1) - 1;
 #pragma omp parallel for
-		for (size_t j = POW2(i); j <= POW2(i+1) -1; j++) {
+		for (size_t j = POW2(i); j <= jend; j++) {
 			if (j%2 == 0 /*pair, fils gauche*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			else
@@ -140,8 +143,9 @@ void descenteSuffMax(struct tablo * a, struct tablo * b) {
 	size_t m = get_height(a->size);
 	
 	for (size_t i = 1; i < m; i++) {
+		const size_t jend = POW2(i+1) - 1;
 #pragma omp parallel for
-		for (size_t j = POW2(i); j <= POW2(i+1) -1; j++) {
+		for (size_t j = POW2(i); j <= jend; j++) {
 			if (j%2 == 1 /*pair, fils droit*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			else
@@ -153,8 +157,9 @@ void descenteSuffMax(struct tablo * a, struct tablo * b) {
 void final(struct tablo * a, struct tablo *b) {
 	size_t m = get_height(a->size/2);
 
+	const size_t iend = POW2(m+1) - 1;
 #pragma omp parallel for
-	for (size_t i = POW2(m); i <= POW2(m+1) -1; i++) {
+	for (size_t i = POW2(m); i <= iend; i++) {
 		b->tab[i] = b->tab[i] + a->tab[i];
 	}
 
@@ -163,8 +168,9 @@ void final(struct tablo * a, struct tablo *b) {
 void finalMax(struct tablo * a, struct tablo *b) {
 	size_t m = get_height(a->size/2);
 
+	const size_t iend = POW2(m+1) - 1;
 #pragma omp parallel for
-	for (size_t i = POW2(m); i <= POW2(m+1) -1; i++) {
+	for (size_t i = POW2(m); i <= iend; i++) {
 		b->tab[i] = MAX( b->tab[i] , a->tab[i]);
 	}
 
@@ -328,8 +334,9 @@ int main(int argc, char **argv) {
   	struct tablo * Ms = allocateTablo(source.size);
 	struct tablo * Mp = allocateTablo(source.size);
 	struct tablo * M = allocateTablo(source.size);
+	const size_t iend = 2*source.size;
 #pragma omp parallel for
-	for (size_t i = source.size; i < 2*source.size; i++) {
+	for (size_t i = source.size; i < iend; i++) {
 #pragma omp parallel
 {
 			Ms->tab[i - source.size] = bpm->tab[i] - b2->tab[i] /*+ source.tab[i - source.size]*/;
