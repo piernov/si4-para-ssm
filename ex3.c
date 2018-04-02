@@ -92,13 +92,19 @@ void descente(struct tablo * a, struct tablo * b) {
 	size_t m = get_height(a->size);
 	
 	for (size_t i = 1; i < m; i++) {
-		const size_t jend = POW2(i+1) - 1;
+		const size_t jend = POW2(i) - 1;
 #pragma omp parallel for
-		for (size_t j = POW2(i); j <= jend; j++) {
+		for (size_t oj = POW2(i - 1); oj <= jend; oj++) {
+			int j = oj << 1;
+			b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
+			b->tab[j+1/*nœud*/] = b->tab[(j+1)/2/*parent*/] + a->tab[(j+1)-1];
+
+#if 0
 			if (j%2 == 0 /*pair, fils gauche*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			else
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/] + a->tab[j-1];
+#endif
 		}
 	}
 }
@@ -109,13 +115,19 @@ void descenteSuff(struct tablo * a, struct tablo * b) {
 	unsigned int m = get_height(a->size);
 	
 	for (size_t i = 1; i < m; i++) {
-		const size_t jend = POW2(i+1) - 1;
+		const size_t jend = POW2(i) - 1;
 #pragma omp parallel for
-		for (size_t j = POW2(i); j <= jend; j++) {
+		for (size_t oj = POW2(i-1); oj <= jend; oj++) {
+
+			size_t j = oj << 1;
+			b->tab[j/*nœud*/] = b->tab[j/2/*parent*/] + a->tab[j+1];
+			b->tab[j+1/*nœud*/] = b->tab[(j+1)/2/*parent*/];
+#if 0
 			if (j%2 == 1 /*pair, fils droit*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			else
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/] + a->tab[j+1];
+#endif
 		}
 	}
 }
@@ -126,13 +138,19 @@ void descentePreMax(struct tablo * a, struct tablo * b) {
 	size_t m = get_height(a->size);
 	
 	for (size_t i = 1; i < m; i++) {
-		const size_t jend = POW2(i+1) - 1;
+		const size_t jend = POW2(i)-1;
 #pragma omp parallel for
-		for (size_t j = POW2(i); j <= jend; j++) {
+		for (size_t oj = POW2(i-1); oj <= jend; oj++) {
+			size_t j = oj << 1;
+			b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
+			b->tab[j+1/*nœud*/] = MAX( b->tab[(j+1)/2/*parent*/] , a->tab[(j+1)-1] );
+
+#if 0
 			if (j%2 == 0 /*pair, fils gauche*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			else
 				b->tab[j/*nœud*/] = MAX( b->tab[j/2/*parent*/] , a->tab[j-1] );
+#endif
 		}
 	}
 }
@@ -143,13 +161,19 @@ void descenteSuffMax(struct tablo * a, struct tablo * b) {
 	size_t m = get_height(a->size);
 	
 	for (size_t i = 1; i < m; i++) {
-		const size_t jend = POW2(i+1) - 1;
+		const size_t jend = POW2(i)-1;
 #pragma omp parallel for
-		for (size_t j = POW2(i); j <= jend; j++) {
+		for (size_t oj = POW2(i-1); oj <= jend; oj++) {
+			size_t j = oj << 1;
+			b->tab[j/*nœud*/] = MAX(b->tab[j/2/*parent*/] , a->tab[j+1]);
+			b->tab[j+1/*nœud*/] = b->tab[(j+1)/2/*parent*/];
+
+#if 0
 			if (j%2 == 1 /*pair, fils droit*/)
 				b->tab[j/*nœud*/] = b->tab[j/2/*parent*/];
 			else
 				b->tab[j/*nœud*/] = MAX(b->tab[j/2/*parent*/] , a->tab[j+1]);
+#endif
 		}
 	}
 }
